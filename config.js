@@ -1,2 +1,2 @@
-const SUPABASE_URL = 'https://tlbnilzawnahlqvcrhzov.supabase.co';
+const SUPABASE_URL = 'https://tlbnilzawnhlqvcrhzov.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsYm5pbHphd25obHF2Y3Joem92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NDAyMzQsImV4cCI6MjA5MDExNjIzNH0.xZx7-VOlr8UH7vvjsYq3Y45u258A2NilOmorSMusddY';
