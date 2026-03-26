@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TMC · Produtividade</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <span class="logo-badge">TMC</span>
+        <span class="logo-text">Produtividade</span>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="dashboard">
+          <span class="nav-icon">◈</span> Dashboard
+        </button>
+        <button class="nav-item" data-view="equipe">
+          <span class="nav-icon">◉</span> Equipe
+        </button>
+        <button class="nav-item" data-view="tarefas">
+          <span class="nav-icon">▤</span> Tarefas
+        </button>
+        <button class="nav-item" data-view="retrabalho">
+          <span class="nav-icon">↺</span> Retrabalho
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <span class="refresh-dot">●</span>
+        <span class="refresh-text">Ao vivo · 60s</span>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+
+      <!-- Topbar -->
+      <header class="topbar">
+        <h1 class="view-title" id="viewTitle">Dashboard</h1>
+        <div class="period-filters">
+          <button class="period-btn" data-period="today">Hoje</button>
+          <button class="period-btn active" data-period="week">Semana</button>
+          <button class="period-btn" data-period="month">Mês</button>
+          <button class="period-btn" data-period="quarter">Trimestre</button>
+        </div>
+      </header>
+
+      <!-- Loading -->
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <span>Carregando dados...</span>
+      </div>
+
+      <!-- Error -->
+      <div class="error-state hidden" id="errorState">
+        <span class="error-icon">⚠</span>
+        <div>
+          <strong>Erro ao conectar com o Supabase</strong>
+          <p id="errorMsg"></p>
+        </div>
+        <button onclick="fetchAndRender()">Tentar novamente</button>
+      </div>
+
+      <!-- View: Dashboard -->
+      <div id="view-dashboard" class="view hidden">
+        <div class="metrics-grid" id="metricsGrid"></div>
+        <div class="content-grid">
+          <div class="card chart-card">
+            <h3 class="card-title">Produção por Dia</h3>
+            <div class="chart-container">
+              <canvas id="productionChart"></canvas>
+            </div>
+          </div>
+          <div class="card ranking-card">
+            <h3 class="card-title">Ranking do Time</h3>
+            <div id="teamRanking"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- View: Equipe -->
+      <div id="view-equipe" class="view hidden">
+        <div class="team-grid" id="teamGrid"></div>
+      </div>
+
+      <!-- View: Tarefas -->
+      <div id="view-tarefas" class="view hidden">
+        <div class="card">
+          <div class="table-toolbar">
+            <input type="text" class="search-input" id="taskSearch" placeholder="Buscar tarefa, cliente ou responsável...">
+            <span class="table-count" id="taskCount"></span>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Tarefa</th>
+                  <th>Cliente</th>
+                  <th>Responsável</th>
+                  <th>Horas</th>
+                  <th>Sessões</th>
+                  <th>Última atividade</th>
+                </tr>
+              </thead>
+              <tbody id="tasksBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- View: Retrabalho -->
+      <div id="view-retrabalho" class="view hidden">
+        <div class="metrics-grid" id="retrabalhoMetrics"></div>
+        <div class="card">
+          <h3 class="card-title">
+            Tarefas com Retrabalho
+            <span class="badge badge-warning">+2 sessões</span>
+          </h3>
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Tarefa</th>
+                  <th>Cliente</th>
+                  <th>Responsável</th>
+                  <th>Sessões</th>
+                  <th>Total Horas</th>
+                  <th>Nível</th>
+                </tr>
+              </thead>
+              <tbody id="retrabalhoBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
