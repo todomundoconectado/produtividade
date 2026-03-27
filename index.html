@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -44,11 +44,35 @@
       <!-- Topbar -->
       <header class="topbar">
         <h1 class="view-title" id="viewTitle">Dashboard</h1>
-        <div class="period-filters">
-          <button class="period-btn" data-period="today">Hoje</button>
-          <button class="period-btn active" data-period="week">Semana</button>
-          <button class="period-btn" data-period="month">Mês</button>
-          <button class="period-btn" data-period="quarter">Trimestre</button>
+
+        <div class="topbar-right">
+          <!-- Filtros de período + picker personalizado -->
+          <div class="filters-wrapper">
+            <div class="period-filters">
+              <button class="period-btn" data-period="today">Hoje</button>
+              <button class="period-btn" data-period="yesterday">Ontem</button>
+              <button class="period-btn active" data-period="week">Semana</button>
+              <button class="period-btn" data-period="month">Mês</button>
+              <button class="period-btn" data-period="quarter">Trimestre</button>
+              <button class="period-btn" data-period="custom" id="customBtn">Personalizado</button>
+            </div>
+
+            <!-- Dropdown data personalizada -->
+            <div class="custom-picker hidden" id="customPicker">
+              <div class="custom-picker-row">
+                <label>De</label>
+                <input type="date" id="dateStart">
+              </div>
+              <div class="custom-picker-row">
+                <label>Até</label>
+                <input type="date" id="dateEnd">
+              </div>
+              <button class="custom-apply" id="applyCustom">Aplicar</button>
+            </div>
+          </div>
+
+          <!-- Toggle de tema -->
+          <button class="theme-toggle" id="themeToggle" title="Alternar tema">☀</button>
         </div>
       </header>
 

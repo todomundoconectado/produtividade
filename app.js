@@ -6,10 +6,43 @@ let currentPeriod = 'week';
 let currentView   = 'dashboard';
 let chart         = null;
 let refreshTimer  = null;
+let customStart   = null;   // ISO string para período personalizado
+let customEnd     = null;
+
+// ─── Tema ─────────────────────────────────────────────────────────────────────
+function initTheme() {
+  const saved = localStorage.getItem('tmc-theme') || 'dark';
+  applyTheme(saved);
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('themeToggle');
+  // Dark mode → mostra sol (para clarear)
+  // Light mode → mostra lua (para escurecer)
+  btn.textContent = theme === 'dark' ? '☀' : '🌙';
+  localStorage.setItem('tmc-theme', theme);
+  // Re-renderiza o chart com as cores corretas
+  if (allData.length) renderChart(allData);
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+document.getElementById('themeToggle').addEventListener('click', toggleTheme);
 
 // ─── Período ──────────────────────────────────────────────────────────────────
 function getPeriodDates(period) {
   const now = new Date();
+
+  if (period === 'custom') {
+    return {
+      start: customStart || new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString(),
+      end:   customEnd   || now.toISOString(),
+    };
+  }
 
   let start;
   switch (period) {
@@ -17,9 +50,17 @@ function getPeriodDates(period) {
       start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
       break;
 
+    case 'yesterday': {
+      const y = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0);
+      return {
+        start: y.toISOString(),
+        end:   new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString(),
+      };
+    }
+
     case 'week': {
-      const dow  = now.getDay();                       // 0=Dom
-      const diff = dow === 0 ? 6 : dow - 1;           // dias desde segunda
+      const dow  = now.getDay();
+      const diff = dow === 0 ? 6 : dow - 1;
       start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff, 0, 0, 0);
       break;
     }
@@ -67,19 +108,14 @@ async function fetchData() {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+function isLight() {
+  return document.documentElement.getAttribute('data-theme') === 'light';
+}
+
 function extractCliente(taskName) {
   if (!taskName) return 'Sem cliente';
   const parts = taskName.split(' | ');
   return parts.length > 1 ? parts[1].trim() : taskName;
-}
-
-function fmtH(min) {
-  if (!min || min <= 0) return '0h';
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  if (h === 0) return `${m}min`;
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}min`;
 }
 
 function fmtHd(min) {
@@ -103,9 +139,9 @@ function fmtDate(iso) {
 
 // ─── Processamento ────────────────────────────────────────────────────────────
 function metrics(data) {
-  const totalMin     = data.reduce((s, r) => s + (r.minutos_sessao || 0), 0);
-  const uniqueTasks  = new Set(data.map(r => r.task_id || r.task_name)).size;
-  const avgMin       = uniqueTasks > 0 ? Math.round(totalMin / uniqueTasks) : 0;
+  const totalMin    = data.reduce((s, r) => s + (r.minutos_sessao || 0), 0);
+  const uniqueTasks = new Set(data.map(r => r.task_id || r.task_name)).size;
+  const avgMin      = uniqueTasks > 0 ? Math.round(totalMin / uniqueTasks) : 0;
 
   const byPerson = {};
   data.forEach(r => {
@@ -152,13 +188,13 @@ function byTask(data) {
     if (!key) return;
     if (!map[key]) {
       map[key] = {
-        task_id:    r.task_id,
-        task_name:  r.task_name,
-        cliente:    extractCliente(r.task_name),
+        task_id:     r.task_id,
+        task_name:   r.task_name,
+        cliente:     extractCliente(r.task_name),
         responsavel: r.responsavel,
-        totalMin:   0,
-        sessions:   0,
-        lastAt:     null,
+        totalMin:    0,
+        sessions:    0,
+        lastAt:      null,
       };
     }
     map[key].totalMin += (r.minutos_sessao || 0);
@@ -203,13 +239,30 @@ function renderMetrics(data) {
 
 function renderChart(data) {
   const { labels, values } = byDay(data);
+  const container = document.getElementById('productionChart')?.parentElement;
+  if (!container) return;
+
+  // Recriar o canvas se foi substituído por mensagem de vazio
+  if (!document.getElementById('productionChart')) {
+    container.innerHTML = '<canvas id="productionChart"></canvas>';
+  }
+
   const ctx = document.getElementById('productionChart').getContext('2d');
   if (chart) chart.destroy();
 
   if (labels.length === 0) {
-    ctx.canvas.parentElement.innerHTML = '<div class="empty">Sem dados no período selecionado</div>';
+    container.innerHTML = '<div class="empty">Sem dados no período selecionado</div>';
+    chart = null;
     return;
   }
+
+  const light = isLight();
+  const tickColor  = light ? 'rgba(26,24,48,0.45)' : 'rgba(241,241,245,0.4)';
+  const gridColor  = light ? 'rgba(0,0,0,0.06)'    : 'rgba(255,255,255,0.04)';
+  const tooltipBg  = light ? '#ffffff'              : '#1a1928';
+  const tooltipBdr = light ? 'rgba(0,0,0,0.1)'     : 'rgba(255,255,255,0.09)';
+  const tooltipTxt = light ? '#1a1830'              : '#f1f1f5';
+  const tooltipSub = light ? 'rgba(26,24,48,0.6)'  : 'rgba(241,241,245,0.6)';
 
   chart = new Chart(ctx, {
     type: 'bar',
@@ -230,23 +283,23 @@ function renderChart(data) {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: '#18181f',
-          borderColor:     'rgba(255,255,255,0.09)',
+          backgroundColor: tooltipBg,
+          borderColor:     tooltipBdr,
           borderWidth: 1,
-          titleColor:  '#f1f1f5',
-          bodyColor:   'rgba(241,241,245,0.6)',
+          titleColor:  tooltipTxt,
+          bodyColor:   tooltipSub,
           padding: 10,
           callbacks: { label: c => ` ${c.raw}h em produção` },
         },
       },
       scales: {
         x: {
-          grid:  { color: 'rgba(255,255,255,0.04)' },
-          ticks: { color: 'rgba(241,241,245,0.4)', font: { family: 'DM Mono', size: 11 } },
+          grid:  { color: gridColor },
+          ticks: { color: tickColor, font: { family: 'DM Mono', size: 11 } },
         },
         y: {
-          grid:  { color: 'rgba(255,255,255,0.04)' },
-          ticks: { color: 'rgba(241,241,245,0.4)', font: { family: 'DM Mono', size: 11 }, callback: v => v + 'h' },
+          grid:  { color: gridColor },
+          ticks: { color: tickColor, font: { family: 'DM Mono', size: 11 }, callback: v => v + 'h' },
         },
       },
     },
@@ -428,7 +481,6 @@ async function fetchAndRender() {
   const loading = document.getElementById('loading');
   const errEl   = document.getElementById('errorState');
 
-  // Mostra loading, esconde views e erro
   loading.classList.remove('hidden');
   errEl.classList.add('hidden');
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
@@ -443,7 +495,6 @@ async function fetchAndRender() {
     renderTasks(allData, document.getElementById('taskSearch').value);
     renderRetrabalho(allData);
 
-    // Mostra a view atual
     const view = document.getElementById(`view-${currentView}`);
     if (view) view.classList.remove('hidden');
 
@@ -461,28 +512,65 @@ const VIEW_TITLES = { dashboard: 'Dashboard', equipe: 'Equipe', tarefas: 'Tarefa
 
 function switchView(view) {
   currentView = view;
-
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === view));
   document.getElementById('viewTitle').textContent = VIEW_TITLES[view] || view;
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-
   const target = document.getElementById(`view-${view}`);
   if (target) target.classList.remove('hidden');
 }
+
+// ─── Picker personalizado ─────────────────────────────────────────────────────
+const customPicker = document.getElementById('customPicker');
+const customBtn    = document.getElementById('customBtn');
+
+function closePicker() {
+  customPicker.classList.add('hidden');
+}
+
+customBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  customPicker.classList.toggle('hidden');
+});
+
+document.getElementById('applyCustom').addEventListener('click', () => {
+  const s = document.getElementById('dateStart').value;
+  const e = document.getElementById('dateEnd').value;
+  if (!s || !e) return;
+
+  customStart = new Date(s + 'T00:00:00').toISOString();
+  customEnd   = new Date(e + 'T23:59:59').toISOString();
+
+  currentPeriod = 'custom';
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  customBtn.classList.add('active');
+  closePicker();
+  fetchAndRender();
+});
+
+// Fechar picker ao clicar fora
+document.addEventListener('click', e => {
+  if (!customPicker.classList.contains('hidden') &&
+      !customPicker.contains(e.target) &&
+      e.target !== customBtn) {
+    closePicker();
+  }
+});
 
 // ─── Eventos ──────────────────────────────────────────────────────────────────
 document.querySelectorAll('.nav-item').forEach(btn =>
   btn.addEventListener('click', () => switchView(btn.dataset.view))
 );
 
-document.querySelectorAll('.period-btn').forEach(btn =>
+document.querySelectorAll('.period-btn').forEach(btn => {
+  if (btn.id === 'customBtn') return; // já tratado acima
   btn.addEventListener('click', () => {
     document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     currentPeriod = btn.dataset.period;
+    closePicker();
     fetchAndRender();
-  })
-);
+  });
+});
 
 document.getElementById('taskSearch').addEventListener('input', e =>
   renderTasks(allData, e.target.value)
@@ -495,5 +583,6 @@ function startRefresh() {
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
+initTheme();
 fetchAndRender();
 startRefresh();
