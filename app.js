@@ -408,9 +408,61 @@ function renderTasks(data, filter = '') {
   `).join('');
 }
 
-function renderRetrabalho(data) {
-  const tasks  = byTask(data);
-  const rework = tasks.filter(t => t.sessions > 2).sort((a, b) => b.sessions - a.sessions);
+async function fetchCorrecoes() {
+  const { start, end } = getPeriodDates(currentPeriod);
+  const url =
+    `${SUPABASE_URL}/rest/v1/correcoes` +
+    `?created_at=gte.${encodeURIComponent(start)}` +
+    `&created_at=lte.${encodeURIComponent(end)}` +
+    `&order=created_at.desc`;
+  try {
+    const res = await fetch(url, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` },
+    });
+    return res.ok ? res.json() : [];
+  } catch {
+    return []; // tabela pode não existir ainda
+  }
+}
+
+async function renderRetrabalho(data) {
+  const tasks      = byTask(data);
+  const correcoes  = await fetchCorrecoes();
+
+  // Tarefas com múltiplas sessões (lógica atual)
+  const bySessionsRework = tasks.filter(t => t.sessions > 2);
+
+  // Tarefas de Correção (nova lógica) — deduplica por task_id
+  const correcaoMap = {};
+  correcoes.forEach(c => {
+    const key = c.task_id || c.task_name;
+    if (!key) return;
+    if (!correcaoMap[key]) {
+      correcaoMap[key] = {
+        task_id:     c.task_id,
+        task_name:   c.task_name,
+        cliente:     extractCliente(c.task_name),
+        responsavel: c.responsavel,
+        totalMin:    0,
+        sessions:    0,
+        lastAt:      c.created_at,
+        tipo:        'correcao',
+      };
+    }
+    correcaoMap[key].sessions++;
+  });
+  const correcaoItems = Object.values(correcaoMap);
+
+  // Merge: prioriza correcao; se mesma tarefa aparece nas duas, marca como correção
+  const correcaoIds = new Set(correcaoItems.map(c => c.task_id || c.task_name));
+  const sessionsItems = bySessionsRework
+    .filter(t => !correcaoIds.has(t.task_id || t.task_name))
+    .map(t => ({ ...t, tipo: 'sessoes' }));
+
+  const rework = [
+    ...correcaoItems,
+    ...sessionsItems,
+  ].sort((a, b) => (b.sessions || 0) - (a.sessions || 0));
 
   const pct = tasks.length > 0 ? ((rework.length / tasks.length) * 100).toFixed(0) : 0;
   const extraSessions = rework.reduce((s, t) => s + (t.sessions - 2), 0);
@@ -452,9 +504,14 @@ function renderRetrabalho(data) {
   }
 
   tbody.innerHTML = rework.map(t => {
-    const badge = t.sessions > 5
-      ? '<span class="badge badge-danger">Alto</span>'
-      : '<span class="badge badge-warning">Médio</span>';
+    let badge;
+    if (t.tipo === 'correcao') {
+      badge = '<span class="badge badge-correcao">Correção</span>';
+    } else if (t.sessions > 5) {
+      badge = '<span class="badge badge-danger">Alto</span>';
+    } else {
+      badge = '<span class="badge badge-warning">Médio</span>';
+    }
     return `
       <tr>
         <td title="${t.task_name || ''}">
@@ -493,7 +550,7 @@ async function fetchAndRender() {
     renderRanking(allData);
     renderTeam(allData);
     renderTasks(allData, document.getElementById('taskSearch').value);
-    renderRetrabalho(allData);
+    await renderRetrabalho(allData);
 
     const view = document.getElementById(`view-${currentView}`);
     if (view) view.classList.remove('hidden');

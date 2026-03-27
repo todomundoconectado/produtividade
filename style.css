@@ -94,28 +94,20 @@ body::after {
 }
 
 .sidebar-logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   padding: 0 6px;
   margin-bottom: 28px;
 }
 
-.logo-badge {
-  background: var(--accent);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  padding: 4px 9px;
-  border-radius: 6px;
+.sidebar-logo-img {
+  width: 152px;
+  height: auto;
+  object-fit: contain;
+  display: block;
 }
 
-.logo-text {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  letter-spacing: 0.03em;
+/* No dark mode, inverte o logo para ficar branco */
+[data-theme="dark"] .sidebar-logo-img {
+  filter: brightness(0) invert(1);
 }
 
 .sidebar-nav {
@@ -788,6 +780,17 @@ body::after {
   background: rgba(239, 68, 68, 0.1);
   color: var(--red);
   border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.badge-correcao {
+  background: rgba(220, 38, 38, 0.14);
+  color: #fca5a5;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+[data-theme="light"] .badge-correcao {
+  color: #b91c1c;
+  background: rgba(220, 38, 38, 0.08);
 }
 
 /* ─── Empty state ─────────────────────────────────────────────────────────── */
