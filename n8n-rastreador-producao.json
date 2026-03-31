@@ -29,7 +29,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extrair status de forma segura — ClickUp pode enviar string ou objeto\nconst body = $json.body;\nconst item = body.history_items?.[0];\nif (!item) return [{ json: { skip: true } }];\n\nconst afterRaw  = item.after?.status  ?? item.after  ?? '';\nconst beforeRaw = item.before?.status ?? item.before ?? '';\n\nconst after  = (typeof afterRaw  === 'object' ? afterRaw.status  : afterRaw ).toString().toLowerCase().trim();\nconst before = (typeof beforeRaw === 'object' ? beforeRaw.status : beforeRaw).toString().toLowerCase().trim();\n\nconst task_id    = body.task_id;\nconst responsavel = item.user?.username || 'Desconhecido';\n\nconst entrou = after  === 'tarefas em andamento';\nconst saiu   = before === 'tarefas em andamento' && after !== 'tarefas em andamento';\n\nreturn [{ json: { task_id, responsavel, entrou, saiu, after, before } }];"
+        "jsCode": "const body = $json.body;\nconst item = body.history_items?.[0];\nif (!item) return [{ json: { skip: true } }];\n\nconst afterRaw  = item.after?.status  ?? item.after  ?? null;\nconst beforeRaw = item.before?.status ?? item.before ?? null;\n\nfunction toStr(v) {\n  if (v === null || v === undefined) return '';\n  if (typeof v === 'object') return String(v.status || '');\n  return String(v);\n}\n\nconst after  = toStr(afterRaw).toLowerCase().trim();\nconst before = toStr(beforeRaw).toLowerCase().trim();\n\nconst task_id     = body.task_id;\nconst responsavel = item.user?.username || 'Desconhecido';\n\nconst entrou = after  === 'tarefas em andamento';\nconst saiu   = before === 'tarefas em andamento' && after !== 'tarefas em andamento';\n\nreturn [{ json: { task_id, responsavel, entrou, saiu, after, before } }];"
       },
       "id": "extrair-status",
       "name": "Extrair Status",
@@ -65,7 +65,7 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "pk_152665026_045OGWJYJILW8Q143BU2VNYN0EP5MQ8T" }
+            { "name": "Authorization", "value": "pk_152665026_NKUK8R4MKIWGB8O4FKW0SW5PEMGBSW53" }
           ]
         },
         "options": {}
