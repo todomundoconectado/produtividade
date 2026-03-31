@@ -124,6 +124,48 @@ async function fetchData() {
   return res.json();
 }
 
+// ─── Enriquecimento de nomes via ClickUp ──────────────────────────────────────
+async function enrichTaskNames(data) {
+  const missing = [...new Set(
+    data.filter(r => !r.task_name && r.task_id).map(r => r.task_id)
+  )];
+  if (!missing.length) return data;
+
+  const nameMap = {};
+  await Promise.all(missing.map(async (task_id) => {
+    try {
+      const res = await fetch(`https://api.clickup.com/api/v2/task/${task_id}`, {
+        headers: { 'Authorization': CLICKUP_TOKEN },
+      });
+      if (!res.ok) return;
+      const t = await res.json();
+      if (!t.name) return;
+      nameMap[task_id] = t.name;
+
+      // Backfill silencioso no Supabase para não buscar de novo na próxima carga
+      fetch(
+        `${SUPABASE_URL}/rest/v1/tempo_producao?task_id=eq.${task_id}&task_name=is.null`,
+        {
+          method: 'PATCH',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify({ task_name: t.name }),
+        }
+      ).catch(() => {});
+    } catch { /* ignora erros individuais */ }
+  }));
+
+  return data.map(r =>
+    (!r.task_name && nameMap[r.task_id])
+      ? { ...r, task_name: nameMap[r.task_id] }
+      : r
+  );
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function isLight() {
   return document.documentElement.getAttribute('data-theme') === 'light';
@@ -1068,6 +1110,7 @@ async function fetchAndRender() {
 
   try {
     allData = await fetchData();
+    allData = await enrichTaskNames(allData);
     renderPersonPills(allData);
     await renderAllViews();
 
