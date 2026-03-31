@@ -39,7 +39,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://api.clickup.com/api/v2/task/' + $('Webhook ClickUp').item.json.body.task_id }}",
+        "url": "={{ 'https://api.clickup.com/api/v2/task/' + $('Webhook ClickUp').first().json.body.task_id }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -61,7 +61,7 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "task_id", "value": "={{ 'eq.' + $('Webhook ClickUp').item.json.body.task_id }}" },
+            { "name": "task_id", "value": "={{ 'eq.' + $('Webhook ClickUp').first().json.body.task_id }}" },
             { "name": "saida_de_andamento", "value": "not.is.null" },
             { "name": "select", "value": "minutos_sessao" }
           ]
@@ -83,7 +83,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Dados do webhook original\nconst webhook = $('Webhook ClickUp').item.json;\nconst tarefa  = $('Buscar Tarefa ClickUp').item.json;\nconst sessoes = $input.all().map(i => i.json);\n\nconst task_id    = webhook.body.task_id;\nconst task_name  = tarefa.name || `Tarefa #${task_id}`;\nconst responsavel = webhook.body.history_items[0].user.username || 'Desconhecido';\nconst entrada_em_andamento = new Date().toISOString();\n\n// Soma de todos os minutos de sessões anteriores fechadas\nconst total_anterior = sessoes.reduce((sum, s) => sum + (s.minutos_sessao || 0), 0);\n\n// due_date: ClickUp envia em ms (string) → converter para ISO\nlet due_date = null;\nif (tarefa.due_date) {\n  due_date = new Date(parseInt(tarefa.due_date)).toISOString();\n}\n\n// Tentar extrair nome do cliente/lista\nconst cliente = tarefa.list?.name || tarefa.folder?.name || null;\n\nreturn [{\n  json: {\n    task_id,\n    task_name,\n    responsavel,\n    cliente,\n    entrada_em_andamento,\n    due_date,\n    total_minutos_acumulado: total_anterior\n  }\n}];"
+        "jsCode": "const webhook = $('Webhook ClickUp').first().json;\nconst tarefa  = $('Buscar Tarefa ClickUp').first().json;\nconst sessoes = $input.all().map(i => i.json);\n\nconst task_id    = webhook.body.task_id;\nconst task_name  = tarefa.name || ('Tarefa #' + task_id);\nconst responsavel = webhook.body.history_items[0].user.username || 'Desconhecido';\nconst entrada_em_andamento = new Date().toISOString();\n\nconst total_anterior = sessoes.reduce((sum, s) => sum + (s.minutos_sessao || 0), 0);\n\nlet due_date = null;\nif (tarefa.due_date) {\n  due_date = new Date(parseInt(tarefa.due_date)).toISOString();\n}\n\nreturn [{ json: {\n  task_id,\n  task_name,\n  responsavel,\n  entrada_em_andamento,\n  due_date,\n  total_minutos_acumulado: total_anterior\n} }];"
       },
       "id": "preparar-entrada",
       "name": "Preparar Dados de Entrada",
@@ -97,7 +97,7 @@
         "url": "https://tlbnilzawnhlqvcrhzov.supabase.co/rest/v1/tempo_producao",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"task_id\": \"{{ $json.task_id }}\",\n  \"task_name\": \"{{ $json.task_name }}\",\n  \"responsavel\": \"{{ $json.responsavel }}\",\n  \"cliente\": {{ $json.cliente ? '\"' + $json.cliente + '\"' : 'null' }},\n  \"entrada_em_andamento\": \"{{ $json.entrada_em_andamento }}\",\n  \"due_date\": {{ $json.due_date ? '\"' + $json.due_date + '\"' : 'null' }},\n  \"total_minutos_acumulado\": {{ $json.total_minutos_acumulado }}\n}",
+        "jsonBody": "={{ JSON.stringify($json) }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -143,7 +143,7 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "task_id", "value": "={{ 'eq.' + $('Webhook ClickUp').item.json.body.task_id }}" },
+            { "name": "task_id", "value": "={{ 'eq.' + $('Webhook ClickUp').first().json.body.task_id }}" },
             { "name": "saida_de_andamento", "value": "is.null" },
             { "name": "select", "value": "id,task_id,task_name,responsavel,entrada_em_andamento,total_minutos_acumulado" },
             { "name": "order", "value": "entrada_em_andamento.desc" },
@@ -154,7 +154,8 @@
         "headerParameters": {
           "parameters": [
             { "name": "apikey", "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsYm5pbHphd25obHF2Y3Joem92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NDAyMzQsImV4cCI6MjA5MDExNjIzNH0.xZx7-VOlr8UH7vvjsYq3Y45u258A2NilOmorSMusddY" },
-            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsYm5pbHphd25obHF2Y3Joem92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NDAyMzQsImV4cCI6MjA5MDExNjIzNH0.xZx7-VOlr8UH7vvjsYq3Y45u258A2NilOmorSMusddY" }
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsYm5pbHphd25obHF2Y3Joem92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NDAyMzQsImV4cCI6MjA5MDExNjIzNH0.xZx7-VOlr8UH7vvjsYq3Y45u258A2NilOmorSMusddY" },
+            { "name": "Accept", "value": "application/json" }
           ]
         },
         "options": {}
@@ -167,7 +168,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// A query retorna array — pega o primeiro (mais recente)\nconst todos = $input.all();\nif (!todos || todos.length === 0) {\n  throw new Error('Nenhuma sessão aberta encontrada para esta tarefa');\n}\nconst item = todos[0].json;\n\nconst entradaRaw = item.entrada_em_andamento || item.created_at;\nif (!entradaRaw) {\n  throw new Error('Nenhum timestamp de entrada encontrado');\n}\n\nconst entrada = new Date(entradaRaw);\nconst saida   = new Date();\nconst minutos_sessao = Math.round((saida - entrada) / 60000);\n\n// Total acumulado = sessões anteriores (já salvas) + sessão atual\nconst total_anterior = item.total_minutos_acumulado || 0;\nconst total_minutos_acumulado = total_anterior + minutos_sessao;\n\nreturn [{\n  json: {\n    registro_id: item.id,\n    task_id: item.task_id,\n    saida_de_andamento: saida.toISOString(),\n    minutos_sessao,\n    total_minutos_acumulado\n  }\n}];"
+        "jsCode": "const todos = $input.all();\nif (!todos || todos.length === 0) {\n  throw new Error('Nenhuma sessão aberta encontrada para esta tarefa');\n}\nconst item = todos[0].json;\n\nconst entradaRaw = item.entrada_em_andamento || item.created_at;\nif (!entradaRaw) {\n  throw new Error('Nenhum timestamp de entrada encontrado');\n}\n\nconst entrada = new Date(entradaRaw);\nconst saida   = new Date();\nconst minutos_sessao = Math.round((saida - entrada) / 60000);\n\nconst total_anterior = item.total_minutos_acumulado || 0;\nconst total_minutos_acumulado = total_anterior + minutos_sessao;\n\nreturn [{ json: {\n  registro_id: item.id,\n  saida_de_andamento: saida.toISOString(),\n  minutos_sessao,\n  total_minutos_acumulado\n} }];"
       },
       "id": "calcular-minutos",
       "name": "Calcular Minutos",
@@ -181,7 +182,7 @@
         "url": "={{ 'https://tlbnilzawnhlqvcrhzov.supabase.co/rest/v1/tempo_producao?id=eq.' + $json.registro_id }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"saida_de_andamento\": \"{{ $json.saida_de_andamento }}\",\n  \"minutos_sessao\": {{ $json.minutos_sessao }},\n  \"total_minutos_acumulado\": {{ $json.total_minutos_acumulado }}\n}",
+        "jsonBody": "={{ JSON.stringify({ saida_de_andamento: $json.saida_de_andamento, minutos_sessao: $json.minutos_sessao, total_minutos_acumulado: $json.total_minutos_acumulado }) }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -236,6 +237,6 @@
   "staticData": null,
   "tags": [],
   "triggerCount": 1,
-  "updatedAt": "2026-03-30T00:00:00.000Z",
+  "updatedAt": "2026-03-31T00:00:00.000Z",
   "versionId": "1"
 }
