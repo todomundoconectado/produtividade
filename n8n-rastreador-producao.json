@@ -5,7 +5,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "clickup-producao",
-        "responseMode": "lastNode",
+        "responseMode": "responseNode",
         "options": {}
       },
       "id": "webhook-clickup",
@@ -17,14 +17,36 @@
     },
     {
       "parameters": {
+        "respondWith": "text",
+        "responseBody": "ok",
+        "options": { "responseCode": 200 }
+      },
+      "id": "respond-webhook",
+      "name": "Responder 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrair status de forma segura — ClickUp pode enviar string ou objeto\nconst body = $json.body;\nconst item = body.history_items?.[0];\nif (!item) return [{ json: { skip: true } }];\n\nconst afterRaw  = item.after?.status  ?? item.after  ?? '';\nconst beforeRaw = item.before?.status ?? item.before ?? '';\n\nconst after  = (typeof afterRaw  === 'object' ? afterRaw.status  : afterRaw ).toString().toLowerCase().trim();\nconst before = (typeof beforeRaw === 'object' ? beforeRaw.status : beforeRaw).toString().toLowerCase().trim();\n\nconst task_id    = body.task_id;\nconst responsavel = item.user?.username || 'Desconhecido';\n\nconst entrou = after  === 'tarefas em andamento';\nconst saiu   = before === 'tarefas em andamento' && after !== 'tarefas em andamento';\n\nreturn [{ json: { task_id, responsavel, entrou, saiu, after, before } }];"
+      },
+      "id": "extrair-status",
+      "name": "Extrair Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
         "conditions": {
           "options": { "caseSensitive": false },
           "conditions": [
             {
               "id": "cond-entrou",
-              "leftValue": "={{ $json.body.history_items[0].after.status.toLowerCase() }}",
-              "rightValue": "tarefas em andamento",
-              "operator": { "type": "string", "operation": "equals" }
+              "leftValue": "={{ $json.entrou }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
             }
           ],
           "combinator": "and"
@@ -34,12 +56,12 @@
       "name": "Entrou em Andamento?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [460, 300]
+      "position": [680, 300]
     },
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://api.clickup.com/api/v2/task/' + $('Webhook ClickUp').first().json.body.task_id }}",
+        "url": "={{ 'https://api.clickup.com/api/v2/task/' + $json.task_id }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -52,7 +74,7 @@
       "name": "Buscar Tarefa ClickUp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [680, 160]
+      "position": [900, 160]
     },
     {
       "parameters": {
@@ -61,7 +83,7 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "task_id", "value": "={{ 'eq.' + $('Webhook ClickUp').first().json.body.task_id }}" },
+            { "name": "task_id", "value": "={{ 'eq.' + $('Extrair Status').first().json.task_id }}" },
             { "name": "saida_de_andamento", "value": "not.is.null" },
             { "name": "select", "value": "minutos_sessao" }
           ]
@@ -79,17 +101,17 @@
       "name": "Buscar Sessões Anteriores",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [900, 160]
+      "position": [1100, 160]
     },
     {
       "parameters": {
-        "jsCode": "const webhook = $('Webhook ClickUp').first().json;\nconst tarefa  = $('Buscar Tarefa ClickUp').first().json;\nconst sessoes = $input.all().map(i => i.json);\n\nconst task_id    = webhook.body.task_id;\nconst task_name  = tarefa.name || ('Tarefa #' + task_id);\nconst responsavel = webhook.body.history_items[0].user.username || 'Desconhecido';\nconst entrada_em_andamento = new Date().toISOString();\n\nconst total_anterior = sessoes.reduce((sum, s) => sum + (s.minutos_sessao || 0), 0);\n\nlet due_date = null;\nif (tarefa.due_date) {\n  due_date = new Date(parseInt(tarefa.due_date)).toISOString();\n}\n\nreturn [{ json: {\n  task_id,\n  task_name,\n  responsavel,\n  entrada_em_andamento,\n  due_date,\n  total_minutos_acumulado: total_anterior\n} }];"
+        "jsCode": "const meta    = $('Extrair Status').first().json;\nconst tarefa  = $('Buscar Tarefa ClickUp').first().json;\nconst sessoes = $input.all().map(i => i.json);\n\nconst task_id    = meta.task_id;\nconst task_name  = tarefa.name || ('Tarefa #' + task_id);\nconst responsavel = meta.responsavel;\nconst entrada_em_andamento = new Date().toISOString();\nconst total_anterior = sessoes.reduce((sum, s) => sum + (s.minutos_sessao || 0), 0);\n\nlet due_date = null;\nif (tarefa.due_date) {\n  due_date = new Date(parseInt(tarefa.due_date)).toISOString();\n}\n\nreturn [{ json: {\n  task_id,\n  task_name,\n  responsavel,\n  entrada_em_andamento,\n  due_date,\n  total_minutos_acumulado: total_anterior\n} }];"
       },
       "id": "preparar-entrada",
       "name": "Preparar Dados de Entrada",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1120, 160]
+      "position": [1300, 160]
     },
     {
       "parameters": {
@@ -113,7 +135,7 @@
       "name": "Registrar Entrada",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1340, 160]
+      "position": [1500, 160]
     },
     {
       "parameters": {
@@ -122,9 +144,9 @@
           "conditions": [
             {
               "id": "cond-saiu",
-              "leftValue": "={{ $json.body.history_items[0].before.status.toLowerCase() }}",
-              "rightValue": "tarefas em andamento",
-              "operator": { "type": "string", "operation": "equals" }
+              "leftValue": "={{ $json.saiu }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
             }
           ],
           "combinator": "and"
@@ -134,7 +156,7 @@
       "name": "Saiu de Andamento?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [680, 440]
+      "position": [900, 440]
     },
     {
       "parameters": {
@@ -143,7 +165,7 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "task_id", "value": "={{ 'eq.' + $('Webhook ClickUp').first().json.body.task_id }}" },
+            { "name": "task_id", "value": "={{ 'eq.' + $('Extrair Status').first().json.task_id }}" },
             { "name": "saida_de_andamento", "value": "is.null" },
             { "name": "select", "value": "id,task_id,task_name,responsavel,entrada_em_andamento,total_minutos_acumulado" },
             { "name": "order", "value": "entrada_em_andamento.desc" },
@@ -164,17 +186,17 @@
       "name": "Buscar Entrada Aberta",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [900, 440]
+      "position": [1100, 440]
     },
     {
       "parameters": {
-        "jsCode": "const todos = $input.all();\nif (!todos || todos.length === 0) {\n  throw new Error('Nenhuma sessão aberta encontrada para esta tarefa');\n}\nconst item = todos[0].json;\n\nconst entradaRaw = item.entrada_em_andamento || item.created_at;\nif (!entradaRaw) {\n  throw new Error('Nenhum timestamp de entrada encontrado');\n}\n\nconst entrada = new Date(entradaRaw);\nconst saida   = new Date();\nconst minutos_sessao = Math.round((saida - entrada) / 60000);\n\nconst total_anterior = item.total_minutos_acumulado || 0;\nconst total_minutos_acumulado = total_anterior + minutos_sessao;\n\nreturn [{ json: {\n  registro_id: item.id,\n  saida_de_andamento: saida.toISOString(),\n  minutos_sessao,\n  total_minutos_acumulado\n} }];"
+        "jsCode": "const todos = $input.all();\nif (!todos || todos.length === 0) {\n  // Sem sessão aberta — ignora silenciosamente\n  return [];\n}\nconst item = todos[0].json;\n\nconst entradaRaw = item.entrada_em_andamento || item.created_at;\nif (!entradaRaw) return [];\n\nconst entrada = new Date(entradaRaw);\nconst saida   = new Date();\nconst minutos_sessao = Math.round((saida - entrada) / 60000);\n\nconst total_anterior = item.total_minutos_acumulado || 0;\nconst total_minutos_acumulado = total_anterior + minutos_sessao;\n\nreturn [{ json: {\n  registro_id: item.id,\n  saida_de_andamento: saida.toISOString(),\n  minutos_sessao,\n  total_minutos_acumulado\n} }];"
       },
       "id": "calcular-minutos",
       "name": "Calcular Minutos",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1120, 440]
+      "position": [1300, 440]
     },
     {
       "parameters": {
@@ -198,11 +220,19 @@
       "name": "Registrar Saída",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1340, 440]
+      "position": [1500, 440]
     }
   ],
   "connections": {
     "Webhook ClickUp": {
+      "main": [
+        [
+          { "node": "Responder 200", "type": "main", "index": 0 },
+          { "node": "Extrair Status", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Extrair Status": {
       "main": [[{ "node": "Entrou em Andamento?", "type": "main", "index": 0 }]]
     },
     "Entrou em Andamento?": {
