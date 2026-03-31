@@ -6,7 +6,7 @@
   <title>TMC · Produtividade</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -27,6 +27,9 @@
         <button class="nav-item" data-view="tarefas">
           <span class="nav-icon">▤</span> Tarefas
         </button>
+        <button class="nav-item" data-view="movimentacao">
+          <span class="nav-icon">⇄</span> Movimentação
+        </button>
         <button class="nav-item" data-view="retrabalho">
           <span class="nav-icon">↺</span> Retrabalho
         </button>
@@ -43,9 +46,7 @@
       <!-- Topbar -->
       <header class="topbar">
         <h1 class="view-title" id="viewTitle">Dashboard</h1>
-
         <div class="topbar-right">
-          <!-- Filtros de período + picker personalizado -->
           <div class="filters-wrapper">
             <div class="period-filters">
               <button class="period-btn" data-period="today">Hoje</button>
@@ -55,8 +56,6 @@
               <button class="period-btn" data-period="quarter">Trimestre</button>
               <button class="period-btn" data-period="custom" id="customBtn">Personalizado</button>
             </div>
-
-            <!-- Dropdown data personalizada -->
             <div class="custom-picker hidden" id="customPicker">
               <div class="custom-picker-row">
                 <label>De</label>
@@ -69,11 +68,17 @@
               <button class="custom-apply" id="applyCustom">Aplicar</button>
             </div>
           </div>
-
-          <!-- Toggle de tema -->
           <button class="theme-toggle" id="themeToggle" title="Alternar tema">☀</button>
         </div>
       </header>
+
+      <!-- Person Filter Bar -->
+      <div class="person-filter-bar" id="personFilterBar">
+        <span class="person-filter-label">Filtrar por:</span>
+        <div class="person-pills" id="personPills">
+          <button class="person-pill active" data-person="">Todos</button>
+        </div>
+      </div>
 
       <!-- Loading -->
       <div class="loading" id="loading">
@@ -110,6 +115,26 @@
 
       <!-- View: Equipe -->
       <div id="view-equipe" class="view hidden">
+        <div class="equipe-charts-row">
+          <div class="card equipe-chart-card">
+            <h3 class="card-title">Horas por Pessoa</h3>
+            <div class="equipe-chart-container">
+              <canvas id="equipeBarChart"></canvas>
+            </div>
+          </div>
+          <div class="card equipe-chart-card">
+            <h3 class="card-title">Distribuição de Tarefas</h3>
+            <div class="equipe-chart-container equipe-pie-container">
+              <canvas id="equipePieChart"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:14px">
+          <h3 class="card-title">Evolução de Horas por Dia</h3>
+          <div class="equipe-trend-container">
+            <canvas id="equipeTrendChart"></canvas>
+          </div>
+        </div>
         <div class="team-grid" id="teamGrid"></div>
       </div>
 
@@ -118,6 +143,13 @@
         <div class="card">
           <div class="table-toolbar">
             <input type="text" class="search-input" id="taskSearch" placeholder="Buscar tarefa, cliente ou responsável...">
+            <div class="due-filters" id="dueFilters">
+              <button class="due-filter-btn active" data-due="all">Todas</button>
+              <button class="due-filter-btn" data-due="overdue">Vencidas</button>
+              <button class="due-filter-btn" data-due="today">Vencem Hoje</button>
+              <button class="due-filter-btn" data-due="week">Esta Semana</button>
+              <button class="due-filter-btn" data-due="none">Sem Data</button>
+            </div>
             <span class="table-count" id="taskCount"></span>
           </div>
           <div class="table-wrapper">
@@ -127,13 +159,65 @@
                   <th>Tarefa</th>
                   <th>Cliente</th>
                   <th>Responsável</th>
-                  <th>Horas</th>
+                  <th>Tempo</th>
                   <th>Sessões</th>
+                  <th>Vencimento</th>
                   <th>Última atividade</th>
                 </tr>
               </thead>
               <tbody id="tasksBody"></tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- View: Movimentação -->
+      <div id="view-movimentacao" class="view hidden">
+        <div class="mov-tabs-bar">
+          <button class="mov-tab active" data-tab="geral">Visão Geral</button>
+          <button class="mov-tab" data-tab="detalhe">Por Pessoa</button>
+          <button class="mov-tab" data-tab="comparativo">Comparativo</button>
+        </div>
+
+        <!-- Sub-view: Geral -->
+        <div id="mov-geral">
+          <div class="metrics-grid" id="movMetrics"></div>
+          <div class="card">
+            <h3 class="card-title">Tarefas por Dia — por Pessoa</h3>
+            <div class="mov-chart-container">
+              <canvas id="movLineChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-view: Por Pessoa -->
+        <div id="mov-detalhe" class="hidden">
+          <div class="card">
+            <div class="table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Pessoa</th>
+                    <th>Tarefas</th>
+                    <th>Tempo</th>
+                    <th>Sessões</th>
+                  </tr>
+                </thead>
+                <tbody id="movDetalheBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-view: Comparativo -->
+        <div id="mov-comparativo" class="hidden">
+          <div class="comparison-cards" id="comparisonCards"></div>
+          <div class="card">
+            <h3 class="card-title">Tarefas por Dia — Comparativo</h3>
+            <div class="mov-chart-container">
+              <canvas id="movBarChart"></canvas>
+            </div>
           </div>
         </div>
       </div>
@@ -154,7 +238,7 @@
                   <th>Cliente</th>
                   <th>Responsável</th>
                   <th>Sessões</th>
-                  <th>Total Horas</th>
+                  <th>Total Tempo</th>
                   <th>Nível</th>
                 </tr>
               </thead>
