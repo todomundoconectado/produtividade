@@ -134,9 +134,7 @@ async function enrichTaskNames(data) {
   const nameMap = {};
   await Promise.all(missing.map(async (task_id) => {
     try {
-      const res = await fetch(`https://api.clickup.com/api/v2/task/${task_id}`, {
-        headers: { 'Authorization': CLICKUP_TOKEN },
-      });
+      const res = await fetch(`/.netlify/functions/clickup-task?task_id=${task_id}`);
       if (!res.ok) return;
       const t = await res.json();
       if (!t.name) return;
