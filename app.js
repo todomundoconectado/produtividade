@@ -106,7 +106,7 @@ async function fetchData() {
 
   const url =
     `${SUPABASE_URL}/rest/v1/tempo_producao` +
-    `?created_at=gte.${encodeURIComponent(start)}` +
+    `?or=(created_at.gte.${encodeURIComponent(start)},saida_de_andamento.gte.${encodeURIComponent(start)},saida_de_andamento.is.null)` +
     `&created_at=lte.${encodeURIComponent(end)}` +
     `&order=created_at.desc`;
 
