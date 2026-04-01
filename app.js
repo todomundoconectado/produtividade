@@ -1086,7 +1086,7 @@ async function renderRetrabalho(data) {
 
 // ─── Sessões Ativas (Em Andamento Agora) ──────────────────────────────────────
 async function fetchActiveSessions() {
-  const url = `${SUPABASE_URL}/rest/v1/tempo_producao?saida_de_andamento=is.null&select=task_id,task_name,responsavel,entrada_em_andamento,total_minutos_acumulado&order=entrada_em_andamento.desc`;
+  const url = `${SUPABASE_URL}/rest/v1/tempo_producao?saida_de_andamento=is.null&select=id,task_id,task_name,responsavel,entrada_em_andamento,total_minutos_acumulado&order=entrada_em_andamento.desc`;
   try {
     const res = await fetch(url, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } });
     if (!res.ok) return [];
@@ -1094,6 +1094,52 @@ async function fetchActiveSessions() {
   } catch {
     return [];
   }
+}
+
+async function verifyActiveSessionsStatus(sessions) {
+  if (!sessions || !sessions.length) return [];
+  const verified = [];
+  
+  // Vamos validar pelo proxy do Netlify se o status real no ClickUp ainda é "Tarefas em Andamento"
+  await Promise.all(sessions.map(async (s) => {
+    try {
+      if (!s.task_id) { verified.push(s); return; } // Sem task_id do ClickUp (manual?), não conseguimos verificar
+      
+      const res = await fetch(`/.netlify/functions/clickup-task?task_id=${s.task_id}`);
+      if (!res.ok) {
+        verified.push(s); // Se a API do ClickUp falhar (500, limit, etc), mantemos o card
+        return;
+      }
+      
+      const t = await res.json();
+      const statusNormalizado = t.status ? t.status.toLowerCase().trim() : '';
+      
+      // Se não for "tarefas em andamento", auto-heal fechando a sessão no Supabase
+      if (statusNormalizado !== 'tarefas em andamento') {
+        const payload = {
+          saida_de_andamento: s.entrada_em_andamento,
+          minutos_sessao: 0
+        };
+        fetch(`${SUPABASE_URL}/rest/v1/tempo_producao?id=eq.${s.id}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify(payload)
+        }).catch(() => {});
+        // Ao não adicionar ao array 'verified', o card sai da tela imediatamente.
+      } else {
+        verified.push(s);
+      }
+    } catch {
+      verified.push(s);
+    }
+  }));
+  
+  return verified;
 }
 
 function updateActiveTimes() {
@@ -1195,6 +1241,7 @@ async function fetchAndRender() {
     
     activeData = await fetchActiveSessions();
     activeData = await enrichTaskNames(activeData);
+    activeData = await verifyActiveSessionsStatus(activeData);
     
     renderPersonPills(allData);
     await renderAllViews();
