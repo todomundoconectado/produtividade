@@ -184,7 +184,7 @@ function extractCliente(taskName) {
 
 function taskDisplayName(t) {
   if (t.task_name && t.task_name.trim()) {
-    return t.task_name.split(' | ')[0].trim();
+    return t.task_name.trim();
   }
   return t.task_id ? `Tarefa #${t.task_id}` : '—';
 }
