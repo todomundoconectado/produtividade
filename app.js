@@ -2,6 +2,7 @@
 
 // ─── Estado ───────────────────────────────────────────────────────────────────
 let allData        = [];
+let activeData     = [];
 let currentPeriod  = 'week';
 let currentView    = 'dashboard';
 let selectedPerson = null;
@@ -1083,6 +1084,87 @@ async function renderRetrabalho(data) {
   }).join('');
 }
 
+// ─── Sessões Ativas (Em Andamento Agora) ──────────────────────────────────────
+async function fetchActiveSessions() {
+  const url = `${SUPABASE_URL}/rest/v1/tempo_producao?saida_de_andamento=is.null&select=task_id,task_name,responsavel,entrada_em_andamento,total_minutos_acumulado&order=entrada_em_andamento.desc`;
+  try {
+    const res = await fetch(url, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+function updateActiveTimes() {
+  const now = Date.now();
+  document.querySelectorAll('.active-session-card').forEach(card => {
+    const start = parseInt(card.dataset.start, 10);
+    if (!start) return;
+    const diffMs = now - start;
+    const diffMin = Math.floor(diffMs / 60000);
+    
+    if (diffMin > 120) {
+      card.classList.add('overtime');
+    } else {
+      card.classList.remove('overtime');
+    }
+
+    const timeEl = card.querySelector('.active-time span');
+    if (timeEl) {
+      if (diffMin < 60) {
+        timeEl.textContent = `Em andamento há ${diffMin} min`;
+      } else {
+        const h = Math.floor(diffMin / 60);
+        const m = diffMin % 60;
+        timeEl.textContent = `Em andamento há ${h}h ${m}min`;
+      }
+    }
+  });
+}
+
+function renderActiveSessions(data) {
+  const container = document.getElementById('activeSessionsContainer');
+  if (!container) return;
+  if (!data || data.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  // Filtra de acordo com o pill de pessoa selecionado
+  const filtered = selectedPerson ? data.filter(s => s.responsavel === selectedPerson) : data;
+  if (!filtered.length) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const html = filtered.map(session => {
+    const name = session.responsavel || 'Desconhecido';
+    const taskName = taskDisplayName(session);
+    const start = new Date(session.entrada_em_andamento).getTime();
+    
+    return `
+      <div class="active-session-card" data-start="${start}">
+        <div class="active-session-header">
+          <div class="active-avatar">${initials(name)}</div>
+          <div class="active-name" title="${name}">${name}</div>
+          <div class="live-indicator">
+            <div class="live-dot"></div>
+            Ao vivo
+          </div>
+        </div>
+        <div class="active-task-name" title="${taskName}">${taskName}</div>
+        <div class="active-time">
+          <i>⏱</i> <span>Calculando...</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = html;
+  updateActiveTimes();
+}
+
 // ─── Render de todas as views ─────────────────────────────────────────────────
 async function renderAllViews() {
   const data = filterByPerson(allData);
@@ -1095,6 +1177,7 @@ async function renderAllViews() {
   renderTasks(data, document.getElementById('taskSearch').value);
   renderMovimentacao(data);
   await renderRetrabalho(data);
+  renderActiveSessions(activeData);
 }
 
 // ─── Fetch + Render principal ─────────────────────────────────────────────────
@@ -1109,6 +1192,10 @@ async function fetchAndRender() {
   try {
     allData = await fetchData();
     allData = await enrichTaskNames(allData);
+    
+    activeData = await fetchActiveSessions();
+    activeData = await enrichTaskNames(activeData);
+    
     renderPersonPills(allData);
     await renderAllViews();
 
@@ -1226,9 +1313,13 @@ document.querySelectorAll('.mov-tab').forEach(btn => {
 
 // ─── Auto-refresh (60s) ───────────────────────────────────────────────────────
 let refreshTimer = null;
+let activeTimer  = null;
 function startRefresh() {
   if (refreshTimer) clearInterval(refreshTimer);
   refreshTimer = setInterval(fetchAndRender, 60_000);
+
+  if (activeTimer) clearInterval(activeTimer);
+  activeTimer = setInterval(updateActiveTimes, 60_000);
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
