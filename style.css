@@ -260,6 +260,8 @@ body::after {
   box-shadow: 0 1px 4px rgba(0,0,0,0.10);
 }
 
+.refresh-btn { font-size: 15px; padding: 5px 9px; }
+
 /* ─── Person Filter Bar ───────────────────────────────────────────────────── */
 .person-filter-bar {
   position: sticky;

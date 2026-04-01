@@ -142,7 +142,7 @@ async function enrichTaskNames(data) {
 
       // Backfill silencioso no Supabase para não buscar de novo na próxima carga
       fetch(
-        `${SUPABASE_URL}/rest/v1/tempo_producao?task_id=eq.${task_id}&task_name=is.null`,
+        `${SUPABASE_URL}/rest/v1/tempo_producao?task_id=eq.${task_id}&or=(task_name.is.null,task_name.eq.)`,
         {
           method: 'PATCH',
           headers: {
@@ -1184,7 +1184,7 @@ document.querySelectorAll('.nav-item').forEach(btn =>
 );
 
 document.querySelectorAll('.period-btn').forEach(btn => {
-  if (btn.id === 'customBtn') return;
+  if (btn.id === 'customBtn' || btn.id === 'refreshBtn') return;
   btn.addEventListener('click', () => {
     document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
@@ -1193,6 +1193,8 @@ document.querySelectorAll('.period-btn').forEach(btn => {
     fetchAndRender();
   });
 });
+
+document.getElementById('refreshBtn').addEventListener('click', fetchAndRender);
 
 document.getElementById('taskSearch').addEventListener('input', e => {
   const data = filterByPerson(allData);

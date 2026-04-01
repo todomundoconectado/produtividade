@@ -126,7 +126,7 @@
             { "name": "apikey", "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsYm5pbHphd25obHF2Y3Joem92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NDAyMzQsImV4cCI6MjA5MDExNjIzNH0.xZx7-VOlr8UH7vvjsYq3Y45u258A2NilOmorSMusddY" },
             { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsYm5pbHphd25obHF2Y3Joem92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NDAyMzQsImV4cCI6MjA5MDExNjIzNH0.xZx7-VOlr8UH7vvjsYq3Y45u258A2NilOmorSMusddY" },
             { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            { "name": "Prefer", "value": "return=representation" }
           ]
         },
         "options": {}
@@ -190,7 +190,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const todos = $input.all();\nif (!todos || todos.length === 0) {\n  // Sem sessão aberta — ignora silenciosamente\n  return [];\n}\nconst item = todos[0].json;\n\nconst entradaRaw = item.entrada_em_andamento || item.created_at;\nif (!entradaRaw) return [];\n\nconst entrada = new Date(entradaRaw);\nconst saida   = new Date();\nconst minutos_sessao = Math.round((saida - entrada) / 60000);\n\nconst total_anterior = item.total_minutos_acumulado || 0;\nconst total_minutos_acumulado = total_anterior + minutos_sessao;\n\nreturn [{ json: {\n  registro_id: item.id,\n  saida_de_andamento: saida.toISOString(),\n  minutos_sessao,\n  total_minutos_acumulado\n} }];"
+        "jsCode": "const todos = $input.all();\nif (!todos || todos.length === 0) {\n  const tid = $('Extrair Status').first().json.task_id;\n  throw new Error('Nenhuma sessao aberta encontrada para task_id: ' + tid);\n}\nconst item = todos[0].json;\n\nconst entradaRaw = item.entrada_em_andamento || item.created_at;\nif (!entradaRaw) return [];\n\nconst entrada = new Date(entradaRaw);\nconst saida   = new Date();\nconst minutos_sessao = Math.round((saida - entrada) / 60000);\n\nconst total_anterior = item.total_minutos_acumulado || 0;\nconst total_minutos_acumulado = total_anterior + minutos_sessao;\n\nreturn [{ json: {\n  registro_id: item.id,\n  saida_de_andamento: saida.toISOString(),\n  minutos_sessao,\n  total_minutos_acumulado\n} }];"
       },
       "id": "calcular-minutos",
       "name": "Calcular Minutos",
