@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TMC · Produtividade</title>
-  <link rel="icon" type="image/png" href="inf/logo-tmc-fundo-premium.png">
+  <link rel="icon" type="image/png" href="inf/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -33,6 +33,9 @@
         </button>
         <button class="nav-item" data-view="retrabalho">
           <span class="nav-icon">↺</span> Retrabalho
+        </button>
+        <button class="nav-item" data-view="concluidas">
+          <span class="nav-icon">✓</span> Concluídas
         </button>
       </nav>
       <div class="sidebar-footer">
@@ -139,6 +142,13 @@
           </div>
         </div>
         <div class="team-grid" id="teamGrid"></div>
+
+        <!-- Média por Responsável (multi-select) -->
+        <div class="avg-section" id="avgSection">
+          <div class="avg-section-title">Média de Tempo por Tarefa — Comparativo por Responsável</div>
+          <div class="avg-checkboxes" id="avgCheckboxes"></div>
+          <div class="avg-results" id="avgResults"></div>
+        </div>
       </div>
 
       <!-- View: Tarefas -->
@@ -245,6 +255,33 @@
                 <tbody id="jornadaBody"></tbody>
               </table>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- View: Concluídas -->
+      <div id="view-concluidas" class="view hidden">
+        <div class="card">
+          <div class="table-toolbar">
+            <input type="text" class="search-input" id="concluidasSearch" placeholder="Buscar tarefa, cliente ou responsável...">
+            <span class="table-count" id="concluidasCount"></span>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Tarefa</th>
+                  <th>Cliente</th>
+                  <th>Responsável</th>
+                  <th>Tempo Total</th>
+                  <th>Sessões</th>
+                  <th>Média/Sessão</th>
+                  <th>Meta 90min</th>
+                  <th>Última atividade</th>
+                </tr>
+              </thead>
+              <tbody id="concluidasBody"></tbody>
+            </table>
           </div>
         </div>
       </div>

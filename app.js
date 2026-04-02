@@ -380,10 +380,15 @@ function renderPersonPills(data) {
   const container = document.getElementById('personPills');
   if (!container) return;
 
+  const personTimes = {};
+  data.forEach(r => {
+    if (r.responsavel) personTimes[r.responsavel] = (personTimes[r.responsavel] || 0) + (r.minutos_sessao || 0);
+  });
+
   const pills = [
     `<button class="person-pill ${!selectedPerson ? 'active' : ''}" data-person="">Todos</button>`,
     ...persons.map(p =>
-      `<button class="person-pill ${selectedPerson === p ? 'active' : ''}" data-person="${p}">${p.split(' ')[0]}</button>`
+      `<button class="person-pill ${selectedPerson === p ? 'active' : ''}" data-person="${p}">${p.split(' ')[0]}<span class="pill-hours">${fmtHM(personTimes[p] || 0)}</span></button>`
     ),
   ];
   container.innerHTML = pills.join('');
@@ -400,6 +405,12 @@ function renderPersonPills(data) {
 // ─── Renderização ─────────────────────────────────────────────────────────────
 function renderMetrics(data) {
   const m = metrics(data);
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const tasks = byTask(data);
+  const atrasadas = tasks.filter(t => t.due_date && new Date(t.due_date) < today).length;
+  const atrasadasColor = atrasadas > 0 ? 'var(--red)' : 'var(--green)';
+
   document.getElementById('metricsGrid').innerHTML = `
     <div class="metric-card">
       <div class="metric-label">Horas em Produção</div>
@@ -416,8 +427,14 @@ function renderMetrics(data) {
     <div class="metric-card">
       <div class="metric-label">Média por Tarefa</div>
       <div class="metric-value">${fmtHM(m.avgMin)}</div>
-      <div class="metric-sub">por tarefa executada</div>
+      <div class="metric-sub">meta: ${META_MINUTOS} min (01:30)</div>
       <span class="metric-icon">∅</span>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Tarefas Atrasadas</div>
+      <div class="metric-value" style="color:${atrasadasColor}">${atrasadas}</div>
+      <div class="metric-sub">${atrasadas === 0 ? 'todas no prazo' : 'acima do prazo'}</div>
+      <span class="metric-icon">!</span>
     </div>
     <div class="metric-card">
       <div class="metric-label">Maior Produtor</div>
@@ -1092,6 +1109,129 @@ async function renderRetrabalho(data) {
   }).join('');
 }
 
+// ─── Concluídas ───────────────────────────────────────────────────────────────
+function renderConcluidas(data, textFilter = '') {
+  const activeTaskIds = new Set((activeData || []).map(s => s.task_id).filter(Boolean));
+  let tasks = byTask(data).filter(t => t.task_id && !activeTaskIds.has(t.task_id));
+
+  if (textFilter) {
+    const q = textFilter.toLowerCase();
+    tasks = tasks.filter(t =>
+      taskDisplayName(t).toLowerCase().includes(q) ||
+      (t.cliente     || '').toLowerCase().includes(q) ||
+      (t.responsavel || '').toLowerCase().includes(q)
+    );
+  }
+
+  const countEl = document.getElementById('concluidasCount');
+  if (countEl) countEl.textContent = `${tasks.length} tarefa(s)`;
+
+  const tbody = document.getElementById('concluidasBody');
+  if (!tbody) return;
+
+  if (!tasks.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">Nenhuma tarefa concluída no período</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = tasks.map(t => {
+    const avgSession = t.sessions > 0 ? Math.round(t.totalMin / t.sessions) : 0;
+    let metaBadge;
+    if (avgSession === 0) {
+      metaBadge = '<span class="meta-badge-warn">Sem dados</span>';
+    } else if (avgSession <= META_MINUTOS) {
+      metaBadge = `<span class="meta-badge-ok">✓ Dentro (${fmtHM(avgSession)})</span>`;
+    } else if (avgSession <= META_MINUTOS * 1.5) {
+      metaBadge = `<span class="meta-badge-warn">▲ Atenção (${fmtHM(avgSession)})</span>`;
+    } else {
+      metaBadge = `<span class="meta-badge-over">✕ Acima (${fmtHM(avgSession)})</span>`;
+    }
+    return `
+      <tr>
+        <td title="${taskDisplayName(t)}">${taskLink(t)}</td>
+        <td>${t.cliente}</td>
+        <td>${t.responsavel || '—'}</td>
+        <td class="mono">${fmtHM(t.totalMin)}</td>
+        <td class="mono">${t.sessions}</td>
+        <td class="mono">${fmtHM(avgSession)}</td>
+        <td>${metaBadge}</td>
+        <td style="color:var(--muted);font-size:12px">${fmtDate(t.lastAt)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ─── Média por Responsável (multi-select) ─────────────────────────────────────
+let selectedPersonsAvg = new Set();
+
+function renderMediaResponsavel(data) {
+  const people = byPerson(data);
+  if (!people.length) return;
+
+  // Inicializa com todos selecionados na primeira carga
+  if (selectedPersonsAvg.size === 0) {
+    people.forEach(p => selectedPersonsAvg.add(p.name));
+  }
+
+  const checkboxesEl = document.getElementById('avgCheckboxes');
+  const resultsEl    = document.getElementById('avgResults');
+  if (!checkboxesEl || !resultsEl) return;
+
+  // Renderiza checkboxes
+  checkboxesEl.innerHTML = people.map(p => `
+    <label class="avg-checkbox-label">
+      <input type="checkbox" data-person="${p.name}" ${selectedPersonsAvg.has(p.name) ? 'checked' : ''}>
+      ${p.name.split(' ')[0]}
+    </label>
+  `).join('');
+
+  checkboxesEl.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) selectedPersonsAvg.add(cb.dataset.person);
+      else selectedPersonsAvg.delete(cb.dataset.person);
+      updateAvgResults(people);
+    });
+  });
+
+  updateAvgResults(people);
+}
+
+function updateAvgResults(people) {
+  const resultsEl = document.getElementById('avgResults');
+  if (!resultsEl) return;
+
+  const selected = people.filter(p => selectedPersonsAvg.has(p.name));
+  if (!selected.length) {
+    resultsEl.innerHTML = '<div style="color:var(--muted);font-size:13px">Selecione ao menos uma pessoa</div>';
+    return;
+  }
+
+  // Média combinada dos selecionados
+  const combinedTasks = selected.reduce((s, p) => s + p.tasks, 0);
+  const combinedMin   = selected.reduce((s, p) => s + p.min, 0);
+  const combinedAvg   = combinedTasks > 0 ? Math.round(combinedMin / combinedTasks) : 0;
+
+  const combinedCard = `
+    <div class="avg-result-card avg-result-combined">
+      <div class="avg-result-label">Média Combinada (${selected.length} pessoa${selected.length > 1 ? 's' : ''})</div>
+      <div class="avg-result-value">${fmtHM(combinedAvg)}</div>
+    </div>
+  `;
+
+  const individualCards = selected.map(p => {
+    const avg = p.tasks > 0 ? Math.round(p.min / p.tasks) : 0;
+    const color = avg <= META_MINUTOS ? 'var(--green)' : avg <= META_MINUTOS * 1.5 ? 'var(--amber)' : 'var(--red)';
+    return `
+      <div class="avg-result-card">
+        <div class="avg-result-label">${p.name.split(' ')[0]} — ${p.tasks} tarefa(s)</div>
+        <div class="avg-result-value" style="color:${color}">${fmtHM(avg)}</div>
+      </div>
+    `;
+  }).join('');
+
+  resultsEl.innerHTML = combinedCard + individualCards;
+}
+
 // ─── Movimentações (tabela movimentacoes) ─────────────────────────────────────
 async function fetchMovimentacoes(start, end) {
   const url =
@@ -1269,15 +1409,17 @@ async function verifyActiveSessionsStatus(sessions) {
   return verified;
 }
 
+const META_MINUTOS = 90;
+
 function updateActiveTimes() {
   const now = Date.now();
   document.querySelectorAll('.active-session-card').forEach(card => {
     const start = parseInt(card.dataset.start, 10);
     if (!start) return;
-    const diffMs = now - start;
+    const diffMs  = now - start;
     const diffMin = Math.floor(diffMs / 60000);
-    
-    if (diffMin > 120) {
+
+    if (diffMin >= META_MINUTOS) {
       card.classList.add('overtime');
     } else {
       card.classList.remove('overtime');
@@ -1291,6 +1433,25 @@ function updateActiveTimes() {
         const h = Math.floor(diffMin / 60);
         const m = diffMin % 60;
         timeEl.textContent = `Em andamento há ${h}h ${m}min`;
+      }
+    }
+
+    const fill = card.querySelector('.session-progress-fill');
+    if (fill) {
+      const pct = Math.min((diffMin / META_MINUTOS) * 100, 100);
+      fill.style.width = `${pct}%`;
+      fill.style.backgroundColor =
+        diffMin < 45  ? 'var(--green)'  :
+        diffMin < META_MINUTOS ? 'var(--amber)'  : 'var(--red)';
+    }
+    const metaLbl = card.querySelector('.session-meta-label');
+    if (metaLbl) {
+      if (diffMin < META_MINUTOS) {
+        metaLbl.textContent = `Meta: ${META_MINUTOS - diffMin} min restantes`;
+        metaLbl.style.color = diffMin < 45 ? 'var(--green)' : 'var(--amber)';
+      } else {
+        metaLbl.textContent = `Acima da meta em ${diffMin - META_MINUTOS} min`;
+        metaLbl.style.color = 'var(--red)';
       }
     }
   });
@@ -1330,6 +1491,12 @@ function renderActiveSessions(data) {
         <div class="active-time">
           <i>⏱</i> <span>Calculando...</span>
         </div>
+        <div>
+          <div class="session-progress">
+            <div class="session-progress-fill" style="width:0%;background:var(--green)"></div>
+          </div>
+          <div class="session-meta-label">Meta: ${META_MINUTOS} min</div>
+        </div>
       </div>
     `;
   }).join('');
@@ -1351,6 +1518,8 @@ async function renderAllViews() {
   renderMovimentacao(data);
   renderJornada();
   await renderRetrabalho(data);
+  renderConcluidas(data, document.getElementById('concluidasSearch')?.value || '');
+  renderMediaResponsavel(data);
   renderActiveSessions(activeData);
 }
 
@@ -1397,6 +1566,7 @@ const VIEW_TITLES = {
   tarefas:      'Tarefas',
   movimentacao: 'Movimentação',
   retrabalho:   'Retrabalho',
+  concluidas:   'Concluídas',
 };
 
 function switchView(view) {
@@ -1465,6 +1635,11 @@ document.getElementById('refreshBtn').addEventListener('click', fetchAndRender);
 document.getElementById('taskSearch').addEventListener('input', e => {
   const data = filterByPerson(allData);
   renderTasks(data, e.target.value);
+});
+
+document.getElementById('concluidasSearch').addEventListener('input', e => {
+  const data = filterByPerson(allData);
+  renderConcluidas(data, e.target.value);
 });
 
 // Filtros de vencimento

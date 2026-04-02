@@ -640,7 +640,7 @@ body::after {
 /* ─── Metrics Grid ────────────────────────────────────────────────────────── */
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 14px;
   margin-bottom: 20px;
 }
@@ -1142,6 +1142,113 @@ body::after {
   align-items: center;
   gap: 8px;
 }
+
+/* ─── Metrics Grid — auto-fill para suportar 5+ cards ───────────────────── */
+.metrics-grid {
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+}
+
+/* ─── Person Pill com horas ──────────────────────────────────────────────── */
+.pill-hours {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.7;
+  margin-left: 4px;
+}
+
+/* ─── Barra de progresso 90min nas sessões ativas ────────────────────────── */
+.session-progress {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.session-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 1s linear, background-color 0.4s;
+}
+.active-session-card .session-meta-label {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* ─── Concluídas View ────────────────────────────────────────────────────── */
+.meta-badge-ok      { color: var(--green);  font-size: 11px; font-weight: 700; }
+.meta-badge-warn    { color: var(--amber);  font-size: 11px; font-weight: 700; }
+.meta-badge-over    { color: var(--red);    font-size: 11px; font-weight: 700; }
+
+/* ─── Seção de Média por Responsável (multi-select) ─────────────────────── */
+.avg-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+}
+.avg-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+.avg-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.avg-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface-2);
+  transition: border-color 0.14s, background 0.14s;
+  user-select: none;
+}
+.avg-checkbox-label:hover { border-color: var(--accent-mid); }
+.avg-checkbox-label input { accent-color: var(--accent); }
+.avg-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.avg-result-card {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  transition: background 0.22s;
+}
+.avg-result-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.avg-result-value {
+  font-family: 'DM Mono', monospace;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--text);
+}
+.avg-result-combined {
+  border-color: var(--accent-mid);
+  background: var(--accent-low);
+}
+.avg-result-combined .avg-result-value { color: var(--accent-text); }
 
 /* ─── Empty state ─────────────────────────────────────────────────────────── */
 .empty {
