@@ -3,6 +3,7 @@
 // ─── Estado ───────────────────────────────────────────────────────────────────
 let allData        = [];
 let activeData     = [];
+let allMovData     = [];
 let currentPeriod  = 'week';
 let currentView    = 'dashboard';
 let selectedPerson = null;
@@ -221,6 +222,13 @@ function fmtDateShort(iso) {
 function filterByPerson(data) {
   if (!selectedPerson) return data;
   return data.filter(r => r.responsavel === selectedPerson);
+}
+
+function sanitizeData(data) {
+  return data.map(r => ({
+    ...r,
+    minutos_sessao: (r.minutos_sessao > 600) ? 0 : (r.minutos_sessao || 0),
+  }));
 }
 
 function chartTheme() {
@@ -1084,6 +1092,125 @@ async function renderRetrabalho(data) {
   }).join('');
 }
 
+// ─── Movimentações (tabela movimentacoes) ─────────────────────────────────────
+async function fetchMovimentacoes(start, end) {
+  const url =
+    `${SUPABASE_URL}/rest/v1/movimentacoes` +
+    `?timestamp=gte.${encodeURIComponent(start)}` +
+    `&timestamp=lte.${encodeURIComponent(end)}` +
+    `&order=timestamp.asc`;
+  try {
+    const res = await fetch(url, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` },
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+function byPersonJornada(movData) {
+  const dayMap = {}; // { date: { person: { first, last, tasks: Set } } }
+
+  movData.forEach(r => {
+    if (!r.responsavel || !r.timestamp) return;
+    const date = r.timestamp.substring(0, 10);
+    if (!dayMap[date]) dayMap[date] = {};
+    if (!dayMap[date][r.responsavel]) {
+      dayMap[date][r.responsavel] = { first: r.timestamp, last: r.timestamp, tasks: new Set() };
+    }
+    const entry = dayMap[date][r.responsavel];
+    if (r.timestamp < entry.first) entry.first = r.timestamp;
+    if (r.timestamp > entry.last)  entry.last  = r.timestamp;
+    if (r.task_id) entry.tasks.add(r.task_id);
+  });
+
+  const rows = [];
+  Object.entries(dayMap).sort((a, b) => a[0].localeCompare(b[0])).forEach(([date, personData]) => {
+    Object.entries(personData).forEach(([person, stats]) => {
+      const jornadaMin = Math.round((new Date(stats.last) - new Date(stats.first)) / 60000);
+      rows.push({ date, person, taskCount: stats.tasks.size, first: stats.first, last: stats.last, jornadaMin });
+    });
+  });
+  return rows;
+}
+
+function renderJornada() {
+  const movData = selectedPerson
+    ? allMovData.filter(r => r.responsavel === selectedPerson)
+    : allMovData;
+
+  const rows = byPersonJornada(movData);
+
+  // ── Métricas ──────────────────────────────────────────────────────────────
+  const totalMovTasks = rows.reduce((s, r) => s + r.taskCount, 0);
+  const diasAtivos    = new Set(rows.map(r => r.date)).size;
+  const media         = diasAtivos > 0 ? (totalMovTasks / diasAtivos).toFixed(1) : '0';
+
+  const personTotals = {};
+  rows.forEach(r => { personTotals[r.person] = (personTotals[r.person] || 0) + r.taskCount; });
+  const topEntry = Object.entries(personTotals).sort((a, b) => b[1] - a[1])[0];
+
+  const metricsEl = document.getElementById('jornadaMetrics');
+  if (metricsEl) {
+    metricsEl.innerHTML = `
+      <div class="metric-card">
+        <div class="metric-label">Tarefas Movimentadas</div>
+        <div class="metric-value">${totalMovTasks}</div>
+        <div class="metric-sub">total no período (via status)</div>
+        <span class="metric-icon">⇄</span>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Média / Dia Ativo</div>
+        <div class="metric-value">${media}</div>
+        <div class="metric-sub">tarefas por dia ativo</div>
+        <span class="metric-icon">∅</span>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Pessoa Mais Ativa</div>
+        <div class="metric-value" style="font-size:20px;line-height:1.4">${topEntry ? topEntry[0].split(' ')[0] : '—'}</div>
+        <div class="metric-sub">${topEntry ? topEntry[1] + ' tarefas movimentadas' : 'sem dados'}</div>
+        <span class="metric-icon">★</span>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Dias com Atividade</div>
+        <div class="metric-value">${diasAtivos}</div>
+        <div class="metric-sub">dias com movimentações</div>
+        <span class="metric-icon">📅</span>
+      </div>
+    `;
+  }
+
+  // ── Tabela ────────────────────────────────────────────────────────────────
+  const tbody = document.getElementById('jornadaBody');
+  if (!tbody) return;
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">Sem movimentações no período — configure o n8n para registrar</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows
+    .sort((a, b) => b.date.localeCompare(a.date) || b.taskCount - a.taskCount)
+    .map(r => {
+      const [, m, day]   = r.date.split('-');
+      const firstStr     = new Date(r.first).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const lastStr      = new Date(r.last).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const jornadaColor = r.jornadaMin >= 480 ? 'var(--green)' : r.jornadaMin >= 240 ? 'var(--amber)' : 'var(--text-muted)';
+      return `
+        <tr>
+          <td class="mono">${day}/${m}</td>
+          <td>${r.person}</td>
+          <td class="mono">${r.taskCount}</td>
+          <td class="mono" style="color:var(--green)">${firstStr}</td>
+          <td class="mono" style="color:var(--amber)">${lastStr}</td>
+          <td class="mono" style="color:${jornadaColor}">${fmtHM(r.jornadaMin)}</td>
+        </tr>
+      `;
+    }).join('');
+}
+
 // ─── Sessões Ativas (Em Andamento Agora) ──────────────────────────────────────
 async function fetchActiveSessions() {
   const url = `${SUPABASE_URL}/rest/v1/tempo_producao?saida_de_andamento=is.null&select=id,task_id,task_name,responsavel,entrada_em_andamento,total_minutos_acumulado&order=entrada_em_andamento.desc`;
@@ -1222,6 +1349,7 @@ async function renderAllViews() {
   renderTeam(data);
   renderTasks(data, document.getElementById('taskSearch').value);
   renderMovimentacao(data);
+  renderJornada();
   await renderRetrabalho(data);
   renderActiveSessions(activeData);
 }
@@ -1238,7 +1366,11 @@ async function fetchAndRender() {
   try {
     allData = await fetchData();
     allData = await enrichTaskNames(allData);
-    
+    allData = sanitizeData(allData);
+
+    const { start: movStart, end: movEnd } = getPeriodDates(currentPeriod);
+    allMovData = await fetchMovimentacoes(movStart, movEnd);
+
     activeData = await fetchActiveSessions();
     activeData = await enrichTaskNames(activeData);
     activeData = await verifyActiveSessionsStatus(activeData);
@@ -1355,6 +1487,7 @@ document.querySelectorAll('.mov-tab').forEach(btn => {
     document.getElementById('mov-geral').classList.toggle('hidden', movCurrentTab !== 'geral');
     document.getElementById('mov-detalhe').classList.toggle('hidden', movCurrentTab !== 'detalhe');
     document.getElementById('mov-comparativo').classList.toggle('hidden', movCurrentTab !== 'comparativo');
+    document.getElementById('mov-jornada').classList.toggle('hidden', movCurrentTab !== 'jornada');
   });
 });
 

@@ -190,13 +190,47 @@
     },
     {
       "parameters": {
-        "jsCode": "const todos = $input.all();\nif (!todos || todos.length === 0) {\n  const tid = $('Extrair Status').first().json.task_id;\n  throw new Error('Nenhuma sessao aberta encontrada para task_id: ' + tid);\n}\nconst item = todos[0].json;\n\nconst entradaRaw = item.entrada_em_andamento || item.created_at;\nif (!entradaRaw) return [];\n\nconst entrada = new Date(entradaRaw);\nconst saida   = new Date();\nconst minutos_sessao = Math.round((saida - entrada) / 60000);\n\nconst total_anterior = item.total_minutos_acumulado || 0;\nconst total_minutos_acumulado = total_anterior + minutos_sessao;\n\nreturn [{ json: {\n  registro_id: item.id,\n  saida_de_andamento: saida.toISOString(),\n  minutos_sessao,\n  total_minutos_acumulado\n} }];"
+        "jsCode": "const todos = $input.all();\nif (!todos || todos.length === 0) {\n  const tid = $('Extrair Status').first().json.task_id;\n  throw new Error('Nenhuma sessao aberta encontrada para task_id: ' + tid);\n}\nconst item = todos[0].json;\n\nconst entradaRaw = item.entrada_em_andamento || item.created_at;\nif (!entradaRaw) return [];\n\nconst entrada = new Date(entradaRaw);\nconst saida   = new Date();\nconst MAX_MINUTOS = 600;\nconst minutos_sessao = Math.min(Math.round((saida - entrada) / 60000), MAX_MINUTOS);\n\nconst total_anterior = item.total_minutos_acumulado || 0;\nconst total_minutos_acumulado = total_anterior + minutos_sessao;\n\nreturn [{ json: {\n  registro_id: item.id,\n  saida_de_andamento: saida.toISOString(),\n  minutos_sessao,\n  total_minutos_acumulado\n} }];"
       },
       "id": "calcular-minutos",
       "name": "Calcular Minutos",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [1300, 440]
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('Extrair Status').first().json;\nif (!meta.task_id || !meta.responsavel || meta.responsavel === 'Desconhecido') return [];\nreturn [{ json: {\n  task_id: meta.task_id,\n  responsavel: meta.responsavel,\n  de_status: meta.before || null,\n  para_status: meta.after || null,\n  timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "preparar-movimentacao",
+      "name": "Preparar Movimentação",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 560]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://tlbnilzawnhlqvcrhzov.supabase.co/rest/v1/movimentacoes",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsYm5pbHphd25obHF2Y3Joem92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NDAyMzQsImV4cCI6MjA5MDExNjIzNH0.xZx7-VOlr8UH7vvjsYq3Y45u258A2NilOmorSMusddY" },
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsYm5pbHphd25obHF2Y3Joem92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NDAyMzQsImV4cCI6MjA5MDExNjIzNH0.xZx7-VOlr8UH7vvjsYq3Y45u258A2NilOmorSMusddY" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "registrar-movimentacao",
+      "name": "Registrar Movimentação",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 560]
     },
     {
       "parameters": {
@@ -233,7 +267,18 @@
       ]
     },
     "Extrair Status": {
-      "main": [[{ "node": "Entrou em Andamento?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          { "node": "Entrou em Andamento?", "type": "main", "index": 0 },
+          { "node": "Preparar Movimentação", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Preparar Movimentação": {
+      "main": [[{ "node": "Registrar Movimentação", "type": "main", "index": 0 }]]
+    },
+    "Registrar Movimentação": {
+      "main": [[]]
     },
     "Entrou em Andamento?": {
       "main": [

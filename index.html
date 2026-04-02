@@ -180,6 +180,7 @@
           <button class="mov-tab active" data-tab="geral">Visão Geral</button>
           <button class="mov-tab" data-tab="detalhe">Por Pessoa</button>
           <button class="mov-tab" data-tab="comparativo">Comparativo</button>
+          <button class="mov-tab" data-tab="jornada">Jornada do Dia</button>
         </div>
 
         <!-- Sub-view: Geral -->
@@ -220,6 +221,29 @@
             <h3 class="card-title">Tarefas por Dia — Comparativo</h3>
             <div class="mov-chart-container">
               <canvas id="movBarChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-view: Jornada do Dia -->
+        <div id="mov-jornada" class="hidden">
+          <div class="metrics-grid" id="jornadaMetrics"></div>
+          <div class="card">
+            <h3 class="card-title">Jornada por Pessoa — Primeira e Última Movimentação</h3>
+            <div class="table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Pessoa</th>
+                    <th>Tarefas Movimentadas</th>
+                    <th>Primeira Mov.</th>
+                    <th>Última Mov.</th>
+                    <th>Jornada</th>
+                  </tr>
+                </thead>
+                <tbody id="jornadaBody"></tbody>
+              </table>
             </div>
           </div>
         </div>
