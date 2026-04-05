@@ -224,6 +224,18 @@ function filterByPerson(data) {
   return data.filter(r => r.responsavel === selectedPerson);
 }
 
+function getAtrasadasIds() {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return new Set(
+    (activeData || []).filter(s => {
+      const totalAcum  = s.total_minutos_acumulado || 0;
+      const currentMin = Math.round((Date.now() - new Date(s.entrada_em_andamento)) / 60000);
+      const isOverdue  = s.due_date && new Date(s.due_date) < today;
+      return (totalAcum + currentMin) > META_MINUTOS && !isOverdue;
+    }).map(s => s.task_id).filter(Boolean)
+  );
+}
+
 function sanitizeData(data) {
   return data.map(r => ({
     ...r,
@@ -407,9 +419,15 @@ function renderMetrics(data) {
   const m = metrics(data);
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const tasks = byTask(data);
-  const atrasadas = tasks.filter(t => t.due_date && new Date(t.due_date) < today).length;
-  const atrasadasColor = atrasadas > 0 ? 'var(--red)' : 'var(--green)';
+  const tasks  = byTask(data);
+
+  // Em Atraso: ativas agora com >90min e prazo ainda ok
+  const emAtrasoCount = getAtrasadasIds().size;
+  const emAtrasoColor = emAtrasoCount > 0 ? 'var(--amber)' : 'var(--green)';
+
+  // Vencidas: qualquer tarefa com due_date no passado
+  const vencidasCount = tasks.filter(t => t.due_date && new Date(t.due_date) < today).length;
+  const vencidasColor = vencidasCount > 0 ? 'var(--red)' : 'var(--green)';
 
   document.getElementById('metricsGrid').innerHTML = `
     <div class="metric-card">
@@ -430,10 +448,16 @@ function renderMetrics(data) {
       <div class="metric-sub">meta: ${META_MINUTOS} min (01:30)</div>
       <span class="metric-icon">∅</span>
     </div>
-    <div class="metric-card">
-      <div class="metric-label">Tarefas Atrasadas</div>
-      <div class="metric-value" style="color:${atrasadasColor}">${atrasadas}</div>
-      <div class="metric-sub">${atrasadas === 0 ? 'todas no prazo' : 'acima do prazo'}</div>
+    <div class="metric-card metric-card-clickable" data-action="atrasadas" title="Clique para filtrar tarefas em atraso">
+      <div class="metric-label">Em Atraso ↗</div>
+      <div class="metric-value" style="color:${emAtrasoColor}">${emAtrasoCount}</div>
+      <div class="metric-sub">${emAtrasoCount === 0 ? 'todas dentro da meta' : 'ativas &gt;90min, prazo ok'}</div>
+      <span class="metric-icon">▲</span>
+    </div>
+    <div class="metric-card metric-card-clickable" data-action="overdue" title="Clique para filtrar tarefas vencidas">
+      <div class="metric-label">Vencidas ↗</div>
+      <div class="metric-value" style="color:${vencidasColor}">${vencidasCount}</div>
+      <div class="metric-sub">${vencidasCount === 0 ? 'todas no prazo' : 'prazo ultrapassado'}</div>
       <span class="metric-icon">!</span>
     </div>
     <div class="metric-card">
@@ -445,6 +469,14 @@ function renderMetrics(data) {
       <span class="metric-icon">★</span>
     </div>
   `;
+
+  // Atualiza badge no nav
+  const navAlert = document.getElementById('navAlertTarefas');
+  if (navAlert) {
+    const total = emAtrasoCount + vencidasCount;
+    navAlert.textContent = total > 0 ? total : '';
+    navAlert.style.display = total > 0 ? 'inline-flex' : 'none';
+  }
 }
 
 function renderChart(data) {
@@ -707,6 +739,10 @@ function renderTeam(data) {
 function renderTasks(data, textFilter = '') {
   let tasks = byTask(data);
 
+  const today    = new Date(); today.setHours(0, 0, 0, 0);
+  const activeIds    = new Set((activeData || []).map(s => s.task_id).filter(Boolean));
+  const atrasadasIds = getAtrasadasIds();
+
   // Filtro de texto
   if (textFilter) {
     const q = textFilter.toLowerCase();
@@ -717,14 +753,14 @@ function renderTasks(data, textFilter = '') {
     );
   }
 
-  // Filtro por vencimento
+  // Filtro por status/vencimento
   if (currentDueFilter !== 'all') {
-    const today    = new Date(); today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
     const nextWeek = new Date(today); nextWeek.setDate(today.getDate() + 7);
 
     tasks = tasks.filter(t => {
-      if (currentDueFilter === 'none') return !t.due_date;
+      if (currentDueFilter === 'atrasadas') return atrasadasIds.has(t.task_id);
+      if (currentDueFilter === 'none')      return !t.due_date;
       if (!t.due_date) return false;
       const due = new Date(t.due_date);
       if (currentDueFilter === 'overdue') return due < today;
@@ -735,27 +771,43 @@ function renderTasks(data, textFilter = '') {
   }
 
   document.getElementById('taskCount').textContent = `${tasks.length} tarefa(s)`;
-
-  const today = new Date(); today.setHours(0, 0, 0, 0);
   const tbody = document.getElementById('tasksBody');
 
   if (!tasks.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">Nenhuma tarefa encontrada</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">Nenhuma tarefa encontrada</td></tr>`;
     return;
   }
 
   tbody.innerHTML = tasks.map(t => {
-    const isOverdue = t.due_date && new Date(t.due_date) < today;
-    const dueBadge  = isOverdue ? '<span class="badge badge-vencida">Vencida</span>' : '';
-    const dueText   = t.due_date ? fmtDateShort(t.due_date) : '—';
+    const isOverdue   = t.due_date && new Date(t.due_date) < today;
+    const isAtrasada  = atrasadasIds.has(t.task_id);
+    const isAtiva     = activeIds.has(t.task_id);
+    const dueText     = t.due_date ? fmtDateShort(t.due_date) : '—';
+
+    let statusBadge;
+    if (isAtrasada) {
+      statusBadge = '<span class="badge badge-warning">Em Atraso</span>';
+    } else if (isOverdue) {
+      statusBadge = '<span class="badge badge-vencida">Vencida</span>';
+    } else if (isAtiva) {
+      statusBadge = '<span class="badge badge-ativa">Ativa</span>';
+    } else {
+      statusBadge = '<span style="color:var(--muted)">—</span>';
+    }
+
+    let rowClass = '';
+    if (isAtrasada)   rowClass = 'row-atrasada';
+    else if (isOverdue) rowClass = 'row-vencida';
+
     return `
-      <tr>
-        <td title="${taskDisplayName(t)}">${taskLink(t)}${dueBadge}</td>
+      <tr class="${rowClass}">
+        <td title="${taskDisplayName(t)}">${taskLink(t)}</td>
         <td>${t.cliente}</td>
         <td>${t.responsavel || '—'}</td>
         <td class="mono">${fmtHM(t.totalMin)}</td>
         <td class="mono">${t.sessions}</td>
         <td class="mono" style="color:${isOverdue ? 'var(--red)' : 'var(--muted)'};">${dueText}</td>
+        <td>${statusBadge}</td>
         <td style="color:var(--muted);font-size:12px">${fmtDate(t.lastAt)}</td>
       </tr>
     `;
@@ -1631,6 +1683,19 @@ document.querySelectorAll('.period-btn').forEach(btn => {
 });
 
 document.getElementById('refreshBtn').addEventListener('click', fetchAndRender);
+
+// Cards do dashboard clicáveis → navega para Tarefas com filtro
+document.getElementById('metricsGrid').addEventListener('click', e => {
+  const card = e.target.closest('[data-action]');
+  if (!card) return;
+  const action = card.dataset.action;
+  switchView('tarefas');
+  currentDueFilter = action;
+  document.querySelectorAll('.due-filter-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.due === action)
+  );
+  renderTasks(filterByPerson(allData), document.getElementById('taskSearch').value);
+});
 
 document.getElementById('taskSearch').addEventListener('input', e => {
   const data = filterByPerson(allData);

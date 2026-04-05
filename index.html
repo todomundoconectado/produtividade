@@ -27,6 +27,7 @@
         </button>
         <button class="nav-item" data-view="tarefas">
           <span class="nav-icon">▤</span> Tarefas
+          <span class="nav-alert" id="navAlertTarefas" style="display:none"></span>
         </button>
         <button class="nav-item" data-view="movimentacao">
           <span class="nav-icon">⇄</span> Movimentação
@@ -158,6 +159,7 @@
             <input type="text" class="search-input" id="taskSearch" placeholder="Buscar tarefa, cliente ou responsável...">
             <div class="due-filters" id="dueFilters">
               <button class="due-filter-btn active" data-due="all">Todas</button>
+              <button class="due-filter-btn" data-due="atrasadas">Em Atraso</button>
               <button class="due-filter-btn" data-due="overdue">Vencidas</button>
               <button class="due-filter-btn" data-due="today">Vencem Hoje</button>
               <button class="due-filter-btn" data-due="week">Esta Semana</button>
@@ -175,6 +177,7 @@
                   <th>Tempo</th>
                   <th>Sessões</th>
                   <th>Vencimento</th>
+                  <th>Status</th>
                   <th>Última atividade</th>
                 </tr>
               </thead>
